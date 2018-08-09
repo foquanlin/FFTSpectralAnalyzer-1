@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Point;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -15,13 +16,17 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.Menu;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
+
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -34,22 +39,13 @@ import ca.uol.aig.fftpack.RealDoubleFFT;
 
 public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	
-	////////////////////////////////////////////////////////////////////////
-	///MENU {OPCIONES,TONOS,SALIR}
-	private static final int EDIT_ID = Menu.FIRST + 2; // boton para opciones
-	private static final int CLOSE_ID = Menu.FIRST + 6;
-	private static final int TONE_ID = Menu.FIRST + 4;
-	
-	///////////////////////////////////////////////////////////////
-	///PREFERENCIAS////////////////////////////////////////////////
-    // Objeto que permite vincular con las preferencias seleccionadas
-	SharedPreferences prefs; 
-	////////////////////////////////////////////////////////////////////////
+
+	/////////////////////////////////////
 	
 	//Ojeto de tipo WakeLock que permite mantener despierta la aplicacion
 	protected PowerManager.WakeLock wakelock;
 	
-	
+
 	
 	RecordAudio recordTask; // proceso de grabacion y analisis
 	AudioRecord audioRecord; // objeto de la clase AudioReord que permite captar el sonido
@@ -103,55 +99,35 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	double freq_asociada = 0; // valor de la frecuencia obtenida como fundamental tras el estudio de los armonicos
 	
 
-	// Frecuencia de referencia asociada a la nota LA-4
-	static double frec_ref = 440;
 	
-	// Array con la escala cromatica 
-	String[] escala = { "F#", "G", "G#", "A", "Bb", "B", "C", "C#", "D", "Eb", "E", "F" };
+
 	
+
 	
-	// * Aqui tendremos encuenta el rango audible por una posible reutilizacion del codigo
-	// aunque en la practica solo estudiemos el espectro en un rango menor, de 50 a 4000 Hz p.ej.
-	int n = 66; // indice correspondiente al maximo frecuencial: 440*2^(66/12) = 19912.127 Hz
-	static double g = -51, j; // Indice correspondiente al minimo frecuencial: 440*2^(-51/12) = 23.125 Hz
-	int fin = n + (int)Math.abs(g) ; // numero de posiciones desde 'j' hasta 'n'
-	
-	// Array con las notas asociadas al array de frecuencias
-	String a; //variable de tipo cadena de caracteres para la nota
-	String[] G; // conjunto de notas posibles
-	
-	
-	double[] F;{ // array con todo el conjunto de frecuencias posibles  detro del rango audible
-		F = new double[fin]; 
-		G = new String[fin];
-		j = g;
-		
-		// Bucle para inicializar tanto el array de frecuencias como el de notas
-		for (int i = 0; i < F.length; i++) {
-			j = j + 1;
-			F[i] = frec_ref * Math.pow(2, j / 12);
-			a = escala[i % 12];			
-			G[i] = a;
-	}}
-	
+
 	
 
 	
 	// Elementos para la representacion en pantalla
-	int alturaGrafica = 200; // tamaño vertical de la grafica
-	
-	int blockSize_grafica = 724; // tamaño horizontal de la grafica
-	
+
+
+
+
+
+    int alturaGrafica = 600; // tamaño vertical de la grafica
+
+	int blockSize_grafica = 1500; // tamaño horizontal de la grafica
+
 	// Calculamos el cociente de la Relacion de Aspecto que usaremos para ubicar
 	// todo aquello cuya posicion varie en funcion de un valor determinado
 	int factor = (int) Math.round((double)blockSize_grafica/(double)alturaGrafica); //adptativo
-	
+
 	// Tamaños de texto para los diferentes mensajes y resultados
 	int TAM_TEXT = 40;
 	int TAM_TEXT1 = 10*factor;
 	int TAM_TEXT2 = 5*factor;
-	int TAM_TEXT3 = 7*factor; 
-	
+	int TAM_TEXT3 = 7*factor;
+
 	
 	TextView statusText; // objeto de la clase TextView para mostrar mensaje
 	
@@ -179,14 +155,13 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	
 	
 	/// PREFERENCIAS
-	
-	boolean AUTODETECCION = false;
+
 	
 	int altura_umbral = 7;
 	
 	// Usamos la clase DecimalFormat para establecer el numero de decimales del resultado
 	DecimalFormat df1;
-	DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);{
+	DecimalFormatSymbols symbols = new  DecimalFormatSymbols(Locale.US);{
     symbols.setDecimalSeparator('.');
     df1= new DecimalFormat("#.#",symbols);}
 	
@@ -199,19 +174,34 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
         // Inicializacion de todos los elementos graficos
         statusText = (TextView) this.findViewById(R.id.StatusTextView);
         startStopButton = (Button) this.findViewById(R.id.StartStopButton);
-		startStopButton.setOnClickListener(this);	
-	
-		
+		startStopButton.setOnClickListener(this);
+
+		int factor = (int) Math.round((double)blockSize_grafica/(double)alturaGrafica); //adptativo
+
+		// Tamaños de texto para los diferentes mensajes y resultados
+		int TAM_TEXT = 40;
+		int TAM_TEXT1 = 10*factor;
+		int TAM_TEXT2 = 5*factor;
+		int TAM_TEXT3 = 7*factor;
+
+
+
 		 // imagen para la representacion del espectro
 		imageView = (ImageView) this.findViewById(R.id.ImageView01);
-		bitmap = Bitmap.createBitmap((int) blockSize_grafica, (int) alturaGrafica,
+
+
+		bitmap = Bitmap.createBitmap(blockSize_grafica, alturaGrafica,
 				Bitmap.Config.ARGB_8888);
+
+
 		canvas = new Canvas(bitmap);
 		paint = new Paint();
 		paint.setColor(Color.GREEN);
 		imageView.setImageBitmap(bitmap);
 		
 		// imagen para dibujar las bandas de frecuencia
+
+
 		imageView2 = (ImageView) this.findViewById(R.id.ImageView02);
 		bitmap2 = Bitmap.createBitmap((int) blockSize_grafica, TAM_TEXT1,
 				Bitmap.Config.ARGB_8888);
@@ -232,7 +222,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		paint4.setColor(Color.YELLOW);
 		
 		// para dibujar el promedio de la magnitud de los armonicos en el espectrograma
-		canvas5 = new Canvas(bitmap);  
+		canvas5 = new Canvas(bitmap);
 		paint5 = new Paint();
 		paint5.setColor(Color.RED);
 		
@@ -275,47 +265,13 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	        // Valor que muestra el boton al volver a la actividad
 	        startStopButton.setText("ON");
 	        	       
-	    	
-	        // Cargamos las preferencias por si el usuario ha hecho alguna modificacion
-	        // en la configuracion de la aplicacion
-	        prefs = PreferenceManager.getDefaultSharedPreferences(this);
-	        
-	        // Preferencia que permite que la aplicacion se detenga automaticamente
-	        // al detectar un sonido con un volumen y varianza determinados
-	        AUTODETECCION = prefs.getBoolean("Default_Option", false);
-	        
-	     
-	     
-	        
-	        // Establece el umbral de detección
-	        // Si el umbral empirico esta por debajo de el minimo de 98 = 7*14
-	        // Establecemos 80 como tope. Se corresponderia a una seleccion
-	        // en el seekbar menor al numero 7
-	        if(prefs.getInt("umbralPref",7)<7){
-	        	UMBRAL = 80; 
-	        }
-	        else{
-	        	 UMBRAL = 14*(prefs.getInt("umbralPref",7));
-	        }
-	        
-	        // Establece la longitud de la trama de detección
-	        // 	Si la longitud de la trama es menor a la minima, 13, 
-	        // Establecemos 13 como tope. Se corresponderia a una seleccion
-	        // en el seekbar menor al numero 13
-	        /*if(prefs.getInt("longtramaPref",13)<13){
-	        	LONGTRAMA = 13;
-	        }
-	        else{
-	        	 LONGTRAMA = (prefs.getInt("longtramaPref",13));
-	        }*/
 
-	        // Altura que tendra la linea que representa el umbral de deteccion de armonicos
-	        altura_umbral = (prefs.getInt("umbralPref",7));
+
 	        
-	        
-	        //RATE = Integer.parseInt(prefs.getString("list_frec_muest","8000"));
-	        //blockSize_fft = Integer.parseInt(prefs.getString("list_fft","1024"));
-	        
+	     
+	     
+
+
 
 	 }
     
@@ -389,7 +345,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			
 			// inicializamos el vector que contendra la FFT de
 			transformer = new RealDoubleFFT(blockSize_fft);
-					
+
 			
 			for (int i = 0; i < bufferReadResult; i++) {
 									
@@ -407,20 +363,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			
 			varianza = varianza(trama);
 			
-			/////////////////////////////////////////////////////////////////////////////////////
-			// AUTODETECCION
-			if (AUTODETECCION){
-				if(validos[1]!=0){ // Si han aprecido armonicos
-					if((maximo>=800)&&(varianza>0.04)){
-					
-						started = false;
-						startStopButton.setText("ON");
-						recordTask.cancel(true);
-					
-					}
-				}
-			}
-				
+
+
 			// Conseguimos precision con el enventanado
 			// Filtra los armonicos en el espectro
 			// Destaca y realza los fundamentales
@@ -434,14 +378,9 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			statusText.setTextSize(TAM_TEXT); // definimos el tamaño para el texto
 			
 
-			DevuelveNota(trama); // escribe por pantalla la nota resultante
+
 			
-			if(freq_asociada>MIN_FREQUENCY){
-				
-				int position = CalculaIndice(freq_asociada);				
-				statusText.setText(BuscaNota(position)+" (" + df1.format(freq_asociada)+" Hz)");
-			}
-			
+
 
 			DibujaEjeFrecuencias(); // Dibuja las bandas que componen el eje de frecuencias			
 			
@@ -467,7 +406,11 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			
 		}
 	}
-    
+
+
+
+
+
     public void EscribirArmonicos(){
 		
     	
@@ -478,18 +421,11 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		
 		
 		
-		for(int num = 0; num<NUM_ARMONICOS;num++){
-			
-			if(validos[num]!=0){
-				canvas4.drawText(df1.format(validos[num])+ "["+ BuscaNota(CalculaIndice(validos[num]))+"]",120*num,25, paint4);
-				
-			}
 
-		}		
-    	
+
     	
     }
-    
+
     ///////////////////////////////////////////////////////////////////////////////
 	//DIBUJA EL EJE DE FRECUENCIAS/////////////////////////////////////////////////
     public void DibujaEjeFrecuencias(){
@@ -548,419 +484,10 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		
     }
     
-    
-    // Algortimo que una vez detecta los armonicos establece cuales son los validos
-    // para determinar la nota fundamental de la trama que se pasa como entrada
-    public String DevuelveNota(double[] trama){
-    	
-    	freq_asociada = 0;
-    	
-    	String nota_final; // cadena que contendra el valor final de la nota
-    	   	   	
-    	double [] armonicos = devuelveArmonicos(trama); // vector con los armonicos detectados
-    	
-		String [] notas = new String[NUM_ARMONICOS]; // vector con las notas correspondientes a los armonicos validos
-		
-		// vector de numeros enteros con la correspondecia a la posicion dentro del array "escala" con las notas
-		// de los armonicos validos
-		int [] indices = new int [NUM_ARMONICOS]; 
-		
-		// Inicializamos a 0 el vector de armonicos validos
-		for(int k = 0; k<NUM_ARMONICOS;k++){
-			validos[k] = 0;
-		}
-	
-		int m = 0, n= 0; // indices para recorrer el array armonicos 
-		// Recorremos el vector de armonicos buscando los candidatos
-		while((m<NUM_ARMONICOS)&&(n<armonicos.length-1)){
-		
-			// Evitamos que se repita mas de una vez un mismo armonico y que aparezcan dos muy proximos
-			// Desventaja: puede que de dos muy proximos no tomemos el de mayor amplitud
-			
-						
-			// Si lo que viene luego en la posicion correspondiente al vector armonicos es distinto a lo que hay ahora
-			if((armonicos[n+1]!=armonicos[n])){
-				
-				// Si la diferencia de distancia en frecuencia entre lo que viene luego y lo que tengo ahora
-				// es menor que la LONGITUD de TRAMA mejor quedate con lo que viene luego
-				//if(Math.abs(armonicos[n+1]-armonicos[n])<LONGTRAMA/2){
-				if(Math.abs(armonicos[n+1]-armonicos[n])<LONGTRAMA){
-					
-					validos[m] = armonicos[n+1];
-					
-					amplitudes[m] = aux3[n+1];					
-					
-					notas[m] = BuscaNota(CalculaIndice(armonicos[n+1])); // calcula la nota en funcion de la frecuencia
-					
-					// devuelve el indice correspondiente a la posicion que ocupa la nota en el array "escala"
-					indices[m] = DevuelvePosicion(BuscaNota(CalculaIndice(armonicos[n+1])));
-					
-					m = m + 1; // avanzamos una posicion en "validos"
-					n = n + 2; // avanzamos dos en "armonicos"
-					
-				}
-				
-				// Si lo que viene luego en el vector armonicos supera el rango de LONGTRAMA
-				else{
-					validos[m] = armonicos[n];
-					
-					amplitudes[m] = aux3[n];					
-					
-					notas[m] = BuscaNota(CalculaIndice(armonicos[n])); // calcula la nota en funcion de la frecuencia
-					
-					// devuelve el indice correspondiente a la posicion que ocupa la nota en el array "escala"
-					indices[m] = DevuelvePosicion(BuscaNota(CalculaIndice(armonicos[n])));
-					
-					m++;
-					n++;
-				
-				}
-				
-			}
-			
-			else{
-				n++;
-			}
-		}
-		
-		
-		// Variables que contendran los valores 
-		// maximo y minimo del espectro asi como su relacion.
-		double Min,Max,May,Men,relacion_amp,relacion_frec; 
-		
-		
-		
-		// Asigna amplitud menor y mayor 
-		if(amplitudes[1]>amplitudes[0]){
-			Min = amplitudes[0];
-			Max = amplitudes[1];
-		}
-		else{
-			Min = amplitudes[1];
-			Max = amplitudes[0];
-		}
-		
-		// Asigna frecuencia menor y mayor 
-		if(validos[1]>validos[0]){
-			Men = validos[0];
-			May = validos[1];
-		}
-		else{
-			Men = validos[1];
-			May = validos[0];
-		}
-	
-		relacion_amp = Max/Min; // relacion entre las amplitudes 
-		
-		relacion_frec = May/Men; // relacion entre las frecuencias
-	
-		// Si la relacion entre las amplitudes y entre las frecuencias es muy grande
-		// despreciamos los armonicos y calculamos directamente la nota como 
-		// la correspondiente al armonico de mayor amplitud
-		if((relacion_amp>REL_AMP)&&(relacion_frec>REL_FREC)){
-			
-			freq_asociada = devuelvePitch(trama);
-			nota_final = BuscaNota(CalculaIndice(freq_asociada));
-			
-			//nota_final = DevuelveNota(CalculaIndice(devuelvePitch(trama)));
-		}
-		
-		else{
-							
-			// La diferencia entre los indices de ambos armonicos siempre ha de guardar 
-			// una cantidad de 3 unidades 
-			// Comprobamos que validos[1]!=0,es decir no hay armonico, para no confundir la nota
-			// Fa# (escala[0]) presente en acordes como B = 5+9+0 ó D = 8+3+0 
-			if((indices[1]>=0)&&(Math.abs(indices[0]-indices[1])>=3)&&(validos[1]!=0)){
-				
-				int menor,mayor; //
-				
-				// comprueba que indice es menor y cual mayor
-				// para pasarselos como entrada al algoritmo
-				// que estima la nota en funcion de las componentes
-				if(indices[1]>indices[0]){
-					menor = indices[0];
-					mayor = indices[1];
-				}
-				else{
-					menor = indices[1];
-					mayor = indices[0];
-				}
-				
-				// Tenemos dos indices de armonicos que guardan una distancia suficiente para formar una nota
-				nota_final = DeterminaNota(menor,mayor,indices[0]);
-				/// Determinar freq_asociada
-				// Si la nota esta en el acorde
-				if(nota_final==escala[indices[0]]){
-					freq_asociada = validos[1]/3;
-				}
-				else if(nota_final==escala[indices[1]]){
-					freq_asociada = validos[0]/3;
-				}
-				else{
-					freq_asociada = validos[0]/3;
-				}
-				// coge la frecuencia de la otra nota y la divide entre 3
-				// Si no coge validos[0] y lo divide entre 3
-				
-			}
-			
-			else if(indices[0]-indices[1] == 0){// si tenemos dos veces la misma nota
-				nota_final = notas[0]; // sera esta la que prevalezca
-				freq_asociada = validos[0];
-			}
-			else{ // si no cumple ninguno de estos requisitos suponemos que es la de mayor amplitud
-				
-				freq_asociada = devuelvePitch(trama);
-				nota_final = BuscaNota(CalculaIndice(freq_asociada));
-				
-				//nota_final = DevuelveNota(CalculaIndice(devuelvePitch(trama)));
-			}
-			
-		
-		}
-    	
-		return nota_final;
-    }
-    
-    // Metodo que nos devuelve la nota en funcion de la presencia de las componentes del acorde mayor de esa nota
-    public String DeterminaNota(int menor, int mayor, int defecto){
-    	
-    	// Escala cromatica y los valores numericos de las notas como acordes
-    	/* F# = [0,4,7]  = [F#,Bb,C#]
-    	 * G  = [1,5,8]  = [G,B,D]
-    	 * G# = [2,6,9]  = [G#,C,Eb]
-    	 * A  = [3,7,10] = [A,C#,E]
-    	 * Bb = [4,8,11] = [Bb,D,F]
-    	 * B  = [5,9,0]  = [B,Eb,F#]
-    	 * C  = [6,10,1] = [C,E,G]
-    	 * C# = [7,11,2] = [C#,F,G#]
-    	 * D  = [8,0,3]  = [D,F#,A] 			
-    	 * Eb = [9,1,4]  = [Eb,G,Bb]
-    	 * E  = [10,2,5] = [E,G#,B]
-    	 * F  = [11,3,6] = [F,A,C] */
-    	
-    	// Cadena que devolvera como nota estimada
-    	String nota = escala[defecto]; // por defecto es la que esta primera en el array de armonicos
-    	
-    	// Iremos descartando posibilidades teniendo ordenados de menor a mayor los indices
-    	// Empezamos por el menor que es el 0, conforme mayor sea el indice menor, menos probabilidades
-    	// habra de que guarde una relacion de 3 unidades con el mayor indice
-    	
-    	if(menor==0){
-    		
-    		if((mayor == 4)||(mayor==7)){ 
-    		
-    			nota = escala[0]; // es LA
-    		}
-    		else if((mayor == 5)||(mayor==9)){
-    			nota = escala[5];
-    		}
-    		else if ((mayor == 3)||(mayor==8)){
-    			nota = escala[8]; // es RE
-    		}
-    		
-    		
-    	}
-    	else if(menor==1){
-    		
 
-    		if((mayor == 5)||(mayor==8)){
-    		
-    			nota = escala[1]; // es SOL
-    		}
-    		else if((mayor == 6)||(mayor==10)){
-    			
-    			nota = escala[6];
-    		}
-    		else if ((mayor == 4)||(mayor==9)){
-    			
-    			nota = escala[9]; // es MIb
-    			
-    			//freq_asociada = validos[0]/3;
-    		}
-    		
-    	}
-    	else if(menor==2){
-    		
-    		if((mayor == 6)||(mayor==9)){
-        		
-    			nota = escala[2]; // es 2
-    		}
-    		else if((mayor == 7)||(mayor==11)){
-    			nota = escala[7];
-    		}
-    		else if ((mayor == 5)||(mayor==10)){
-    			
-    			nota = escala[10];// es MI
-    			
-    			//freq_asociada = validos[0]/3;
-    		}
-    		
-    		
-       	}
-    	else if(menor==3){
-    		
-    		if((mayor == 7)||(mayor==10)){
-        		
-    			nota = escala[3]; // es LA
-    		}
-    		else if((mayor == 6)||(mayor==11)){
-    			
-    			nota = escala[11]; // es FA
-    		}
-    		
-    		else if (mayor==8){ 
-    			
-    			nota = escala[8];// es RE
-    			
-    			//freq_asociada = validos[1]/3;
-    		}
-    		
-    	}
-    	else if(menor==4){
-    		
-    		if((mayor == 8)||(mayor==11)){
-        		
-    			nota = escala[4]; // es 4
-    		}
-    		
-    		else if (mayor==7){ 
-    			
-    			nota = escala[0];
-    			
-    		}
-    		else if(mayor==9){
-    			
-    			nota = escala[9]; // es MIb
-    			
-    			//freq_asociada = validos[1]/3;
-    		}
-    	}
-    	
-    	else if(menor==5){
-    		
-    		if(mayor==8){
-    			nota = escala[1];
-    		}
-    		else if(mayor==9){
-    			nota = escala[5]; // es 5
-    		}
-    		else if(mayor==10){
-    			
-    			nota = escala[10]; // es MI
-    			
-    			//freq_asociada = validos[1]/3;
-    		}
-    	}
-    	else if(menor==6){
-    		
-    		if(mayor==9){
-    			nota = escala[2];
-    		}
-    		else if(mayor==10){
-    			nota = escala[6]; // es 6
-    		}
-    		else if(mayor==11){
-    			nota = escala[11];
-    		}
 
-    		
-    	}
-    	else if(menor==7){
-    		
-    		if(mayor==10){
-    			nota = escala[3];
-    		}
-    		else if(mayor==11){
-    			nota = escala[7]; // es 7
-    		}
-    		
-       	}
-    	else if(menor==8){
-    		if(mayor==11){
-    			nota = escala[4];
-    		}
-    	}
-    	
-    	else {
-    		
-    		nota =  "FALLO";
-    		
-    	}
-    	return nota;
-    }
-    
-   
-    // Función encargada de devolver la posicion que ocupa
-    // en los arrays de frecuencias y notas
-    
-    public int  CalculaIndice(double pitch){ 
-    	
-    	double num; // indice correspondiente a la posicion respecto al LA4
-					// (sera el valor que redondearemos para obtener 'indice')		
-	
-    	int indice; // valor redondeado de num
-    	
-    	
-		// La siguiente operacion devuelve el indice correspondiente a la frecuencia
-		// detectada, es la operacion inversa a la utilizada para calcular la teorica
-		num = 12 * Math.log10(pitch / frec_ref) / Math.log10(2) + 51;
-		
-		indice = (int) Math.round(num); // convierte el indice a entero
-    	
-		return indice;
-    	
-    }
-    
-    // Función encargada de devolver la frcuencia teorica
-    
-    public double  DevuelveFrecuenciaTeo(int indice){ 
-    	
-    	
-    	// OBSERVACION: CORRECCION DE UNA POSICION F[num-1]
-		// PARA QUE DEVUELVA LA FREC IDEAL CORRECTAMENTE
-		// la frecuencia sera el valor correspondiente a la posicion
-		  // 'indice' en el array 'F' del rango de frecuencias posibles
-    	
-		return F[indice - 1];
-    	
-    }
-    
-    // Función encargada de devolver la nota correspondiente
-    
-    public String  BuscaNota(int indice){ 	   
-    	
-    	 // la nota sera el valor correspondiente a la posicion
-		  // 'indice' en el array 'G' del rango de notas posibles
-    	return G[indice];
-    	
-    }
-    
-    
-    // Función encargada de devolver el indice 
-    // o posición de la nota en el array "escala"
-    
-    public int DevuelvePosicion(String nota_draw){ 
-    	    	
- 	       	
- 	   int posicion = 0;
- 	   boolean cumple = false;
- 	   
- 	   while((!cumple) && (posicion<escala.length)){
- 		   if(nota_draw == escala[posicion]){
- 			   cumple = true;
- 		   }
- 		   else{
- 			   posicion ++;
- 		   }
- 			   
- 	   }
- 	   
- 	   return posicion;
- 	   
-    }
-    
+
+
     
     
     // Algoritmo que recibe como parametro de entrada una trama de frecuencias y determina cual es el 
@@ -1007,7 +534,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		return best_frequency;
 
 	} 
-	
+
 	
 	// Algoritmo que recibe como parametro de entrada una trama de frecuencias y determina cuales son los 
     // principales armonicos que componen la señal en funcion del criterio de comparacion con un UMBRAL
@@ -1187,8 +714,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		int pos;// posicion
 		double valor;
 	}
-	
-	
+
+
 	public void onClick(View v) {
 		if (started) {
 
