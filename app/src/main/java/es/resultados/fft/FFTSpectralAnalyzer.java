@@ -40,13 +40,10 @@ import ca.uol.aig.fftpack.RealDoubleFFT;
 public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	
 
-	/////////////////////////////////////
-	
 	//Ojeto de tipo WakeLock que permite mantener despierta la aplicacion
 	protected PowerManager.WakeLock wakelock;
 	
 
-	
 	RecordAudio recordTask; // proceso de grabacion y analisis
 	AudioRecord audioRecord; // objeto de la clase AudioReord que permite captar el sonido
 	
@@ -87,21 +84,12 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	
 	int NUM_ARMONICOS = 6; // numero de armonicos a tener en cuenta 
 	
-	int REL_AMP = 8; // relacion de amplitudes que han de tener los dos primeros armonicos para hallar la nota
-	int REL_FREC = 4; // relacion en frecuencia que han de tener los dos primeros armonicos para hallar la nota
+
 	
 	double[] aux3;{ // declaracion de vector auxiliar para el estudio de la trama
 	aux3 = new double[LONGTRAMA];} // sera el array que contenga la amplitud de los armonicos
 	
 	double [] validos = new double[NUM_ARMONICOS] ; // vector que tendra solo los armonicos de interes
-	double [] amplitudes = new double[NUM_ARMONICOS] ; // vector con las amplitudes de estos armonicos de interes
-	
-	double freq_asociada = 0; // valor de la frecuencia obtenida como fundamental tras el estudio de los armonicos
-	
-
-	
-
-	
 
 	
 
@@ -112,11 +100,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
 
-
-
     int alturaGrafica = 600; // tamaño vertical de la grafica
-
-	int blockSize_grafica = 1500; // tamaño horizontal de la grafica
+	int blockSize_grafica = 1024; // tamaño horizontal de la grafica
 
 	// Calculamos el cociente de la Relacion de Aspecto que usaremos para ubicar
 	// todo aquello cuya posicion varie en funcion de un valor determinado
@@ -179,10 +164,14 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		int factor = (int) Math.round((double)blockSize_grafica/(double)alturaGrafica); //adptativo
 
 		// Tamaños de texto para los diferentes mensajes y resultados
-		int TAM_TEXT = 40;
 		int TAM_TEXT1 = 10*factor;
-		int TAM_TEXT2 = 5*factor;
-		int TAM_TEXT3 = 7*factor;
+
+		Display display = getWindowManager().getDefaultDisplay();
+		Point size = new Point();
+		display.getSize(size);
+		int width = size.x;
+		int height = size.y;
+
 
 
 
@@ -259,20 +248,9 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 	protected void onResume(){
 	        super.onResume();
-	        
-	        wakelock.acquire();      
-	       
+	        wakelock.acquire();
 	        // Valor que muestra el boton al volver a la actividad
 	        startStopButton.setText("ON");
-	        	       
-
-
-	        
-	     
-	     
-
-
-
 	 }
     
 	// Si se sale de la actividad de manera inesperada
@@ -334,9 +312,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		}
 
 		protected void onProgressUpdate(short[]... toTransform) {	
-			
-			
-			
+
 			double maximo = 0,promedio = 0, varianza = 0;
 			
 			// Arrays con las muestras de audio en tiempo y frecuencia en formato double
@@ -349,8 +325,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			
 			for (int i = 0; i < bufferReadResult; i++) {
 									
-				trama[i * 2] = (double) toTransform[0][i];	
-				trama[i * 2 + 1] = 0; // aumentaremos la resolucion en frecuencia de la transformada interpolando ceros
+				trama[i ] = (double) toTransform[0][i];
+				//trama[i * 2 + 1] = 0; // aumentaremos la resolucion en frecuencia de la transformada interpolando ceros
 				
 			}
 			
@@ -412,19 +388,13 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
     public void EscribirArmonicos(){
-		
-    	
+
 		paint4.setAntiAlias(true);
-		paint4.setFilterBitmap(true);			
+		paint4.setFilterBitmap(true);
 		paint4.setTextSize(TAM_TEXT2);
-				
-		
-		
-		
-
-
-    	
     }
+
+
 
     ///////////////////////////////////////////////////////////////////////////////
 	//DIBUJA EL EJE DE FRECUENCIAS/////////////////////////////////////////////////
@@ -436,7 +406,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		paint2.setFilterBitmap(true);
 		
 		// Valores que se mostrara en el eje X
-		int[]bandas ={220,440,880,1320,1760,2350};
+		int[]bandas ={250,500,1000,2000,40000,8000};
 		paint2.setStrokeWidth(5);
 		canvas2.drawLine(0,0,blockSize_grafica,0,paint2);
 		
@@ -486,125 +456,6 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
     
 
 
-
-
-    
-    
-    // Algoritmo que recibe como parametro de entrada una trama de frecuencias y determina cual es el 
-    // principal armonico, es decir el de mayor amplitud
-	public double devuelvePitch(double[] data) {
-
-		
-		// indice o poscion en el que empezaremos a leer en la trama del espectro
-		// que se corresponde con la frecuencia mínima del rango de deteccion
-		final int min_frequency_fft = (int) Math.round(MIN_FREQUENCY
-				* blockSize_buffer / RATE); 
-		// indice o poscion en el que acabaremos de leer en la trama del espectro
-		// que se corresponde con la frecuencia máxima del rango de deteccion
-		final int max_frequency_fft = (int) Math.round(MAX_FREQUENCY
-				* blockSize_buffer / RATE);
-		double best_frequency = min_frequency_fft; // inicializamos la frecuencia candidata en el minimo
-		double best_amplitude = 0; // inicializamos a 0 la amplitud que al final sera la maxima de la trama 
-		
-		// recorremos la trama 
-		for (int i = min_frequency_fft; i <= max_frequency_fft; i++) {
-			
-			// calcula la frecuncia actual restaurando el valor del indice o posicon
-			final double current_frequency = i * 1.0 * RATE
-					/(blockSize_buffer);
-			
-			
-			//final double normalized_amplitude = Math.abs(data[i]);
-			
-			// calcula la amplitud actual
-			final double current_amplitude = Math.pow(data[i * 2], 2)
-					+ Math.pow(data[i * 2 + 1], 2);
-			
-			// normaliza la amplitud actual
-			final double normalized_amplitude = current_amplitude
-					* Math.pow(MIN_FREQUENCY * MAX_FREQUENCY, 0.5)
-					/ current_frequency;
-			
-			// si es mayor que la anterior es candidata a ser la maxima
-			if (normalized_amplitude > best_amplitude) {
-				best_frequency = current_frequency;
-				best_amplitude = normalized_amplitude;
-			}
-		}
-		return best_frequency;
-
-	} 
-
-	
-	// Algoritmo que recibe como parametro de entrada una trama de frecuencias y determina cuales son los 
-    // principales armonicos que componen la señal en funcion del criterio de comparacion con un UMBRAL
-	public double[] devuelveArmonicos(double[] data) {
-		
-		int r = 0; // indice para el recorrido del vector con los armonicos
-		
-		int umbral = (int)UMBRAL; // condicion necesaria para considerarse armonico
-		int longtrama = LONGTRAMA; // longitud de la trama para el estudio de los armonicos
-		
-		
-		// indice o poscion en el que empezaremos a leer en la trama del espectro
-		// que se corresponde con la frecuencia mínima del rango de deteccion
-		final int min_frequency_fft = (int) Math.round(MIN_FREQUENCY
-				* blockSize_buffer / RATE);
-		
-		// indice o poscion en el que acabaremos de leer en la trama del espectro
-		// que se corresponde con la frecuencia máxima del rango de deteccion
-		final int max_frequency_fft = (int) Math.round(MAX_FREQUENCY
-				* blockSize_buffer / RATE);
-		double best_frequency = min_frequency_fft; // inicializamos la frecuencia candidata en el minimo
-				
-		double best_amplitude = 0; // inicializamos la amplitud a comparar con el umbral a 0
-		
-		double[] aux2; // declaracion de vector auxiliar para el estudio de la trama
-		aux2 = new double[longtrama]; // sera el array que contenga los armonicos
-		
-		
-		// bucle que recorre hasta la posicion del maximo del rango [MIN_FREQUENCY,MAX_FREQUENCY]
-		for (int i = min_frequency_fft; i< max_frequency_fft; i = i + longtrama) {				
-        	
-			best_amplitude = 0; // restauramos el valor de la amplitud maxima una vez leida la trama
-			
-			// bucle que recorre la trama
-				for (int j = 0; j < longtrama; j++) {
-		
-					
-					final double current_frequency = (i+j) * 1.0 * RATE
-							/(blockSize_buffer);
-					
-					//final double normalized_amplitude = Math.abs(data[i+j]);
-					
-					final double current_amplitude = Math.pow(data[(i+j) * 2], 2)
-							+ Math.pow(data[(i+j) * 2 + 1], 2);
-					final double normalized_amplitude = current_amplitude
-							* Math.pow(MIN_FREQUENCY * MAX_FREQUENCY, 0.5)
-							/ current_frequency;
-		
-					if (normalized_amplitude > best_amplitude) {
-						best_frequency = current_frequency;
-						best_amplitude = normalized_amplitude;
-					}
-				}
-				
-				if(best_amplitude>umbral){
-					// almacena en aux2 la posicion frecuencia 
-					// que cumple el requisito 'umbral'
-					// y en aux3 la amplitud correspondiente
-					
-					aux3[r] = best_amplitude;
-					aux2[r] = best_frequency;
-					r = r + 1;
-					
-					
-				}
-				
-		}
-		return aux2; // devuelve el vector con las frecuencias de los armonicos
-
-	} 
 	
 	// Metodo para el calculo del promedio de un vector de muestras.
     
