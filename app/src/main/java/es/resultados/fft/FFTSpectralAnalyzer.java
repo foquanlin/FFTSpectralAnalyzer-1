@@ -55,23 +55,23 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	// Configuracion del canal de audio
 	int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_MONO;
 	int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
-	static double RATE = 8000; // frecuencia o tasa de muestreo
+	static double RATE = 44100; // frecuencia o tasa de muestreo
 	
 	
 	int bufferSize = 0;  // tamaño del buffer segun la configuracion de audio
 	int bufferReadResult = 0; // tamaño de la lectura
-	int blockSize_buffer = 1024; // valor por defecto para el bloque de lectura de buffer
+	int blockSize_buffer = 4096; // valor por defecto para el bloque de lectura de buffer
 	
 	
 	
 	// Objeto de la clase que determina la FFT de un vector de muestras
 	private RealDoubleFFT transformer;
-	int blockSize_fft = 2048; // tamaño de la transformada de Fourier
+	int blockSize_fft = 8192;// tamaño de la transformada de Fourier
 	
 	
 	// Frecuencias del rango de estudio asociadas al instrumento
-	static double MIN_FREQUENCY = 50; // HZ
-	static double MAX_FREQUENCY = 3000; // HZ
+	static double MIN_FREQUENCY = 30; // HZ
+	static double MAX_FREQUENCY = 20000; // HZ
 	
 		
 	// Valores pordefecto para el estudio de los armonicos
@@ -100,18 +100,18 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
 
-    int alturaGrafica = 600; // tamaño vertical de la grafica
-	int blockSize_grafica = 1024; // tamaño horizontal de la grafica
+    //int alturaGrafica = 600; // tamaño vertical de la grafica
+	//int blockSize_grafica = 1900; // tamaño horizontal de la grafica
 
 	// Calculamos el cociente de la Relacion de Aspecto que usaremos para ubicar
 	// todo aquello cuya posicion varie en funcion de un valor determinado
-	int factor = (int) Math.round((double)blockSize_grafica/(double)alturaGrafica); //adptativo
+	//int factor = (int) Math.round((double)blockSize_grafica/(double)alturaGrafica); //adptativo
 
 	// Tamaños de texto para los diferentes mensajes y resultados
 	int TAM_TEXT = 40;
-	int TAM_TEXT1 = 10*factor;
-	int TAM_TEXT2 = 5*factor;
-	int TAM_TEXT3 = 7*factor;
+	//int TAM_TEXT1 = 10*factor;
+	//int TAM_TEXT2 = 5*factor;
+
 
 	
 	TextView statusText; // objeto de la clase TextView para mostrar mensaje
@@ -161,17 +161,11 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
         startStopButton = (Button) this.findViewById(R.id.StartStopButton);
 		startStopButton.setOnClickListener(this);
 
-		int factor = (int) Math.round((double)blockSize_grafica/(double)alturaGrafica); //adptativo
+		int[] escalaPantalla; // eje X , Y , relacion de dimensiones.
+		escalaPantalla = screenDimension();
 
 		// Tamaños de texto para los diferentes mensajes y resultados
-		int TAM_TEXT1 = 10*factor;
-
-		Display display = getWindowManager().getDefaultDisplay();
-		Point size = new Point();
-		display.getSize(size);
-		int width = size.x;
-		int height = size.y;
-
+		int TAM_TEXT1 = 10*escalaPantalla[2];
 
 
 
@@ -179,10 +173,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		imageView = (ImageView) this.findViewById(R.id.ImageView01);
 
 
-		bitmap = Bitmap.createBitmap(blockSize_grafica, alturaGrafica,
+		bitmap = Bitmap.createBitmap(escalaPantalla[0], escalaPantalla[1],
 				Bitmap.Config.ARGB_8888);
-
-
 		canvas = new Canvas(bitmap);
 		paint = new Paint();
 		paint.setColor(Color.GREEN);
@@ -192,7 +184,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
 		imageView2 = (ImageView) this.findViewById(R.id.ImageView02);
-		bitmap2 = Bitmap.createBitmap((int) blockSize_grafica, TAM_TEXT1,
+		bitmap2 = Bitmap.createBitmap((int) escalaPantalla[0], TAM_TEXT1,
 				Bitmap.Config.ARGB_8888);
 		canvas2 = new Canvas(bitmap2);
 		paint2 = new Paint();
@@ -229,7 +221,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
         
         // Dibuja el eje de frecuencias
         DibujaEjeFrecuencias();
-        
+
     }
     
     ////////////////////////////////////////////////////////////////////////
@@ -276,7 +268,9 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		@Override
 		protected Void doInBackground(Void... params) {
 			try {
-				
+
+
+
 				// estimacion del tamaño del buffer en funcion de la configuracion de audio
 				bufferSize = AudioRecord.getMinBufferSize((int)RATE,
 						channelConfiguration, audioEncoding);
@@ -311,10 +305,17 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			return null;
 		}
 
-		protected void onProgressUpdate(short[]... toTransform) {	
+		protected void onProgressUpdate(short[]... toTransform) {
 
 			double maximo = 0,promedio = 0, varianza = 0;
-			
+
+
+			//pasa valores de pantalla para no tener que entrar de nuevo a cada funcion
+
+			int[] escalaPantalla; // eje X , Y , relacion de dimensiones.
+			escalaPantalla = screenDimension();
+
+
 			// Arrays con las muestras de audio en tiempo y frecuencia en formato double
 			double[] trama, trama_espectro;	
 			trama = new double[blockSize_fft];
@@ -324,10 +325,10 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 			
 			for (int i = 0; i < bufferReadResult; i++) {
-									
-				trama[i ] = (double) toTransform[0][i];
+
+				trama[i] = (double) toTransform[0][i];
 				//trama[i * 2 + 1] = 0; // aumentaremos la resolucion en frecuencia de la transformada interpolando ceros
-				
+
 			}
 			
 			maximo = max(trama,0,trama.length).valor;
@@ -365,7 +366,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			trama_espectro = normaliza(trama);
 			
 						
-			DibujaEspectro(trama_espectro); // representa graficamente el espectro de la señal				
+			DibujaEspectro(trama_espectro, escalaPantalla); // representa graficamente el espectro de la señal
 			
 			// Dibuja una linea roja que representa el promedio del espectro
 			//canvas5.drawLine(0, alturaGrafica -(float)promedio(trama_espectro)*alturaGrafica, 
@@ -373,10 +374,10 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 			
 			// Dibuja linea cyan con el umbral seleccionado por el usuario
-			canvas6.drawLine(0, alturaGrafica - altura_umbral, blockSize_grafica,alturaGrafica -altura_umbral, paint6);
+			canvas6.drawLine(0, escalaPantalla[1] - altura_umbral, escalaPantalla[0],escalaPantalla[1] -altura_umbral, paint6);
 			
 			
-			EscribirArmonicos();
+			EscribirArmonicos(escalaPantalla);
 		
 			
 			
@@ -387,8 +388,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
 
-    public void EscribirArmonicos(){
-
+    public void EscribirArmonicos(int[] escala){
+		int TAM_TEXT2 = 5*escala[2];
 		paint4.setAntiAlias(true);
 		paint4.setFilterBitmap(true);
 		paint4.setTextSize(TAM_TEXT2);
@@ -400,25 +401,38 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	//DIBUJA EL EJE DE FRECUENCIAS/////////////////////////////////////////////////
     public void DibujaEjeFrecuencias(){
     	
-		
+		int[] escalaPantalla=screenDimension();
 		canvas2.drawColor(Color.BLACK);
 		paint2.setAntiAlias(true);
 		paint2.setFilterBitmap(true);
 		
 		// Valores que se mostrara en el eje X
-		int[]bandas ={250,500,1000,2000,40000,8000};
+		int[]bandas ={30,60,125,250,500,1000,2000,4000,8000,16000};
 		paint2.setStrokeWidth(5);
-		canvas2.drawLine(0,0,blockSize_grafica,0,paint2);
-		
+		canvas2.drawLine(0,0,escalaPantalla[0],0,paint2);
+		int factor1=escalaPantalla[0]/3;
+		int TAM_TEXT3 = 7*escalaPantalla[2];
+		int TAM_TEXT1 = 10*escalaPantalla[2];
+
+
 		paint2.setTextSize(TAM_TEXT3);
-		canvas2.drawText(String.valueOf(bandas[0]),bandas[0]/factor-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
-		canvas2.drawText(String.valueOf(bandas[1]),bandas[1]/factor-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
-		canvas2.drawText(String.valueOf(bandas[2]),bandas[2]/factor-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
-		canvas2.drawText(String.valueOf(bandas[3]),bandas[3]/factor-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
-		canvas2.drawText(String.valueOf(bandas[4]),bandas[4]/factor-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
-		canvas2.drawText(String.valueOf(bandas[5]),bandas[5]/factor-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
-		canvas2.drawText("Hz",blockSize_grafica - TAM_TEXT1,TAM_TEXT3,paint2);
-				
+
+		for(int i=0; i < bandas.length;i++){
+
+            canvas2.drawText(String.valueOf(bandas[i]),Math.round(factor1*Math.log10(bandas[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas[0]))+50,TAM_TEXT3,paint2);
+        }
+		/*canvas2.drawText(String.valueOf(bandas[0]),Math.round(factor1*Math.log10(bandas[0]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[1]),Math.round(factor1*Math.log10(bandas[1]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[2]),Math.round(factor1*Math.log10(bandas[2]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[3]),Math.round(factor1*Math.log10(bandas[3]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[4]),Math.round(factor1*Math.log10(bandas[4]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[5]),Math.round(factor1*Math.log10(bandas[5]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[6]),Math.round(factor1*Math.log10(bandas[6]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[7]),Math.round(factor1*Math.log10(bandas[7]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[8]),Math.round(factor1*Math.log10(bandas[8]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
+		canvas2.drawText(String.valueOf(bandas[9]),Math.round(factor1*Math.log10(bandas[9]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);*/
+		canvas2.drawText("Hz",escalaPantalla[0] - TAM_TEXT1,TAM_TEXT3,paint2);
+
 		imageView2.invalidate();
 		
 		
@@ -427,22 +441,34 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
     
     ///////////////////////////////////////////////////////////////////////////////
 	//DIBUJA EL ESPECTRO///////////////////////////////////////////////////////////
-    public void DibujaEspectro(double[] trama_espectro){
+    public void DibujaEspectro(double[] trama_espectro, int[] escala){
     	
     	// Claculo del la relacion Señal a Ruido (dB)
 		// Resulta del cociente entre el valor maximo del espectro entre el pormedio
 		// Lo ideal es que la SNR valga infinio, lo que significa que no hay ruido
 		//double snr2 = 10*Math.log10(max(trama_espectro,0,trama_espectro.length).valor/promedio(trama_espectro));
-    	
+		int factor1=escala[0]/3;
+		int TAM_TEXT3 = 7*escala[2];
+		int x;
+		int downy ;
+		int upy;
 		canvas.drawColor(Color.BLACK);
 
+
+
 		for (int i = 0; i < trama_espectro.length; i++) {
-			int x = i;
-			int downy = (int) (alturaGrafica - (trama_espectro[i]*alturaGrafica));
-			int upy = alturaGrafica;
-			
-			canvas.drawLine(x, downy, x, upy, paint);
-			
+
+
+			 x = (int) (Math.round(factor1*Math.log10(i*2.69))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(30))+80);
+			 downy = (int) (escala[1] - (trama_espectro[i]*escala[1]));
+			 upy = escala[1];
+			 canvas.drawLine(x, downy, x, upy, paint);
+			for (int j=x; j < (Math.round(factor1*Math.log10((i+1)*2.69))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(30))+80);j++){
+
+				downy = (int) (escala[1] - (trama_espectro[i]*escala[1]));
+				upy = escala[1];
+				canvas.drawLine(j, downy, j, upy, paint);
+			}
 		}
 		
 		//paint3.setAntiAlias(true);
@@ -584,6 +610,17 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			recordTask.execute();
 
 		}
+	}
+ //funcion que toma las medidas de la pantalla y la relacion de dimensiones entre el alto yb el ancho para manejar el tamaño del texto
+	public int [] screenDimension (){
+		int [] pantalla = new int[3];
+		Display display = getWindowManager().getDefaultDisplay();
+		Point size = new Point();
+		display.getSize(size);
+		pantalla[0] = (int) Math.round((double)size.x); // [0] eje X (ancho)
+		pantalla[1] = (int) Math.round((double)size.y *0.6) ; // [1] eje y (alto)
+		pantalla[2] = (int) Math.round((double)pantalla[0]/(double)pantalla[1]); //adptativo: [2] relacion de dimensiones.
+		return pantalla;
 	}
 
 }
