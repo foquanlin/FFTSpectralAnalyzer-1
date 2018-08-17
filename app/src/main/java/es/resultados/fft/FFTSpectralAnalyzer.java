@@ -60,14 +60,14 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	
 	int bufferSize = 0;  // tamaño del buffer segun la configuracion de audio
 	int bufferReadResult = 0; // tamaño de la lectura
-	int blockSize_buffer = 4096; // valor por defecto para el bloque de lectura de buffer
+	int blockSize_buffer = 44100; // valor por defecto para el bloque de lectura de buffer
 	
 	
 	
 	// Objeto de la clase que determina la FFT de un vector de muestras
 	private RealDoubleFFT transformer;
-	int blockSize_fft = 8192;// tamaño de la transformada de Fourier
-	
+	int blockSize_fft = 4096;// tamaño de la transformada de Fourier
+	int escala_fft = (int) ((RATE / 2) / blockSize_fft); //diferencia entre puntos consecutivos de la fft en frecuencia Hz.A cuanto esta un punto de la fft del otro.
 	
 	// Frecuencias del rango de estudio asociadas al instrumento
 	static double MIN_FREQUENCY = 30; // HZ
@@ -331,14 +331,14 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 			}
 			
-			maximo = max(trama,0,trama.length).valor;
+			//maximo = max(trama,0,trama.length).valor;
 			
 			//promedio = promedio(trama);
 			
 			// normalizamos la trama de sonido dividiendo todas las muestra por la de mayor valor
 			normaliza(trama);
 			
-			varianza = varianza(trama);
+			//varianza = varianza(trama);
 			
 
 
@@ -346,7 +346,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			// Filtra los armonicos en el espectro
 			// Destaca y realza los fundamentales
 				
-			trama = aplicaHamming(trama); 
+			trama = aplicaHamming(trama);
 					
 					
 			// Dominio transformado. Realiza la FFT de la trama
@@ -368,17 +368,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 						
 			DibujaEspectro(trama_espectro, escalaPantalla); // representa graficamente el espectro de la señal
 			
-			// Dibuja una linea roja que representa el promedio del espectro
-			//canvas5.drawLine(0, alturaGrafica -(float)promedio(trama_espectro)*alturaGrafica, 
-			//		blockSize_grafica,alturaGrafica -(float)promedio(trama_espectro)*alturaGrafica, paint5);
 
-			
-			// Dibuja linea cyan con el umbral seleccionado por el usuario
-			canvas6.drawLine(0, escalaPantalla[1] - altura_umbral, escalaPantalla[0],escalaPantalla[1] -altura_umbral, paint6);
-			
-			
-			EscribirArmonicos(escalaPantalla);
-		
 			
 			
 		}
@@ -410,15 +400,14 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		int[]bandas ={30,60,125,250,500,1000,2000,4000,8000,16000};
 		paint2.setStrokeWidth(5);
 		canvas2.drawLine(0,0,escalaPantalla[0],0,paint2);
-		int factor1=escalaPantalla[0]/3;
+		int factor1=escalaPantalla[0]/3; //ancho x de la pantalla divido 3. Queda el eje del ancho de la pantalla completo.
 		int TAM_TEXT3 = 7*escalaPantalla[2];
 		int TAM_TEXT1 = 10*escalaPantalla[2];
 
 
 		paint2.setTextSize(TAM_TEXT3);
-
+        // Grafica el eje X en funciona de la frecuenca logaritmicamente. De esta forma queda por octavas.
 		for(int i=0; i < bandas.length;i++){
-
             canvas2.drawText(String.valueOf(bandas[i]),Math.round(factor1*Math.log10(bandas[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas[0]))+50,TAM_TEXT3,paint2);
         }
 		/*canvas2.drawText(String.valueOf(bandas[0]),Math.round(factor1*Math.log10(bandas[0]))-(TAM_TEXT3)/2,TAM_TEXT3,paint2);
@@ -449,26 +438,30 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		//double snr2 = 10*Math.log10(max(trama_espectro,0,trama_espectro.length).valor/promedio(trama_espectro));
 		int factor1=escala[0]/3;
 		int TAM_TEXT3 = 7*escala[2];
-		int x;
+		int x1;
+		int x2;
 		int downy ;
 		int upy;
 		canvas.drawColor(Color.BLACK);
 
 
 
-		for (int i = 0; i < trama_espectro.length; i++) {
-
-
-			 x = (int) (Math.round(factor1*Math.log10(i*2.69))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(30))+80);
+		for (int i = 0; i < trama_espectro.length-1; i++) {
+		    // avanza en X logaritmicamente para que coincida con la representacion por octavas.
+            //El espectro se divide en intervalos regulares por la FFT por lo que en baja frecuencia hay menos resolucion.
+			 x1 = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
+			 x2= (int) (Math.round(factor1*Math.log10((i+1)*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
 			 downy = (int) (escala[1] - (trama_espectro[i]*escala[1]));
-			 upy = escala[1];
-			 canvas.drawLine(x, downy, x, upy, paint);
-			for (int j=x; j < (Math.round(factor1*Math.log10((i+1)*2.69))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(30))+80);j++){
+			 upy = (int) (escala[1] - (trama_espectro[i+1]*escala[1]));
+			 canvas.drawLine(x2, downy, x2, upy, paint);
 
-				downy = (int) (escala[1] - (trama_espectro[i]*escala[1]));
+		/*	 // Completo los valores faltantes de muestras de la FFT en el eje X.
+			for (int j=x; j < (Math.round(factor1*Math.log10((i+1)*2.69))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);j++){
+
+			    downy = (int) (escala[1] - (trama_espectro[i]*escala[1]));
 				upy = escala[1];
 				canvas.drawLine(j, downy, j, upy, paint);
-			}
+			}*/
 		}
 		
 		//paint3.setAntiAlias(true);
@@ -513,7 +506,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
     
     // Metodo para el calculo de la varianza de un vector de muestras.
     
-    private static double varianza(double[] datos) {
+  /*  private static double varianza(double[] datos) {
         // Computo de la media.
         int N = datos.length;
         double med = media(datos);
@@ -524,7 +517,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
         }
         varianza = varianza / (N - 1);
         return varianza;
-    }
+    }*/
 
     
 	// Metodo para la normalizacion de un vector de muestras.
@@ -558,7 +551,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
     }
 	
 
-	
+	/*
 
     // Función que devuelve un objeto de la clase Maximo,que contiene:
 	// valor máximo y posicion en la trama que se pasa como parametro.
@@ -590,7 +583,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	class Maximo {
 		int pos;// posicion
 		double valor;
-	}
+	}*/
 
 
 	public void onClick(View v) {
