@@ -333,7 +333,7 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 			//promedio la fft la cantidad de veces que figara en el if, y solo lo muestra despues de promediar.
 			aux_promedio= aux_promedio +1;
-			if (aux_promedio==2) {
+			if (aux_promedio==10) {
                 DibujaEspectro(trama, escalaPantalla); // representa graficamente el espectro de la señal
                 aux_promedio=0;
             }
@@ -403,21 +403,22 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 		for (int i = 0; i < trama_espectro.length-1; i++) {
 
+			/*
 			int x = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
 			downy = (int) (escala[1]-(50*Math.log10( Math.abs(trama_espectro[i])*escala[1])));
 			upy =  escala[1] ;
 			canvas.drawLine(x, downy, x, upy, paint);
-
+*/
 
 			//////////////////FFT con lineas ///////////////////////
 		    // avanza en X logaritmicamente para que coincida con la representacion por octavas.
             //El espectro se divide en intervalos regulares por la FFT por lo que en baja frecuencia hay menos resolucion.
-			/* x1 = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
+            x1 = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
 			 x2= (int) (Math.round(factor1*Math.log10((i+1)*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
-			 downy = (int) (escala[1] - (trama_espectro[i]*escala[1]));
-			 upy =  (int) (escala[1] - (trama_espectro[i+1]*escala[1])) ;
+			 downy = (int) (escala[1]-(50*Math.log10( Math.abs(trama_espectro[i])*escala[1])));
+			 upy =  (int) (escala[1]-(50*Math.log10( Math.abs(trama_espectro[i+1])*escala[1])));
 			 canvas.drawLine(x1, downy, x2, upy, paint);
-			 */
+
 
 			 // Completo los valores faltantes de muestras de la FFT en el eje X.
 /*			for (int j=x; j < (Math.round(factor1*Math.log10((i+1)*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);j++){
