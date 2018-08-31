@@ -37,111 +37,113 @@ import ca.uol.aig.fftpack.RealDoubleFFT;
 
 
 
+
 public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
-	
+
+
 
 	//Ojeto de tipo WakeLock que permite mantener despierta la aplicacion
 	protected PowerManager.WakeLock wakelock;
-	
+
 
 	RecordAudio recordTask; // proceso de grabacion y analisis
 	AudioRecord audioRecord; // objeto de la clase AudioReord que permite captar el sonido
-	
+
 	Button startStopButton; // boton de arranquue y pausa
 	boolean started = false; // condicion del boton
-	
-	
-	
+
+
+
 	// Configuracion del canal de audio
 	int channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_MONO;
 	int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
 	static double RATE = 44100; // frecuencia o tasa de muestreo
-	
-	
+
+
 	int bufferSize = 0;  // tamaño del buffer segun la configuracion de audio
 	int bufferReadResult = 0; // tamaño de la lectura
 	int blockSize_buffer = 1024; // valor por defecto para el bloque de lectura de buffer
-	
-	
-	
+
+
+
 	// Objeto de la clase que determina la FFT de un vector de muestras
 	private RealDoubleFFT transformer;
-	int blockSize_fft = 4096;// tamaño de la transformada de Fourier
+	int blockSize_fft = 2048;// tamaño de la transformada de Fourier
 	int escala_fft = (int) ((RATE / 2) / blockSize_fft); //diferencia entre puntos consecutivos de la fft en frecuencia Hz.A cuanto esta un punto de la fft del otro.
-	
+
 	// Frecuencias del rango de estudio asociadas al instrumento
 	static double MIN_FREQUENCY = 30; // HZ
 	static double MAX_FREQUENCY = 20000; // HZ
-	
-		
-	// Valores pordefecto para el estudio de los armonicos
-  
-	double UMBRAL = 100; // umbral de amplitud valido para tener en cuenta 
-						 // los armonicos, depende del tamaño de la FFT
-	
-	int LONGTRAMA = 20; // tamaño de la ventana de estudio de los armonicos 
-						// tambien depende del tamaño de la FFT
-	
-	int NUM_ARMONICOS = 6; // numero de armonicos a tener en cuenta 
-	
 
-	
+
+	// Valores pordefecto para el estudio de los armonicos
+
+	double UMBRAL = 100; // umbral de amplitud valido para tener en cuenta
+						 // los armonicos, depende del tamaño de la FFT
+
+	int LONGTRAMA = 20; // tamaño de la ventana de estudio de los armonicos
+						// tambien depende del tamaño de la FFT
+
+	int NUM_ARMONICOS = 6; // numero de armonicos a tener en cuenta
+
+
+
 	double[] aux3;{ // declaracion de vector auxiliar para el estudio de la trama
 	aux3 = new double[LONGTRAMA];} // sera el array que contenga la amplitud de los armonicos
-	
+
 	double [] validos = new double[NUM_ARMONICOS] ; // vector que tendra solo los armonicos de interes
     int aux_promedio=0; // lo uso para contar cunatas veces promedio la fft
 
-	
 
-	
+	private static double[] datos1;
 
-	
+
+
 	// Elementos para la representacion en pantalla
 
 	int TAM_TEXT = 40;
 
-	
+
 	TextView statusText; // objeto de la clase TextView para mostrar mensaje
-	
+
 	ImageView imageView; // imagen para la representacion del espectro
 	Bitmap bitmap;
-	Canvas canvas; 
+	Canvas canvas;
 	Paint paint;
-	
+
 	ImageView imageView2; // imagen para dibujar las bandas de frecuencia
 	Bitmap bitmap2;
-	Canvas canvas2; 
+	Canvas canvas2;
 	Paint paint2;
-	
+
 	Canvas canvas3;// para dibujar el valor de la SNR
 	Paint paint3;
-	
+
 	Canvas canvas4; // para dibujar texto (frecuencia) en el espectrograma
 	Paint paint4;
-	
+
 	Canvas canvas5; // para dibujar el promedio de la magnitud de los armonicos en el espectrograma
 	Paint paint5;
-	
+
 	Canvas canvas6; // para dibujar el umbral establecido por el usuario
 	Paint paint6;
-	
-	
+
+
 	/// PREFERENCIAS
 
-	
+
 	// Usamos la clase DecimalFormat para establecer el numero de decimales del resultado
 	DecimalFormat df1;
 	DecimalFormatSymbols symbols = new  DecimalFormatSymbols(Locale.US);{
     symbols.setDecimalSeparator('.');
     df1= new DecimalFormat("#.#",symbols);}
-	
-    // Cuando la actividad es llamada por primera vez 
+
+    // Cuando la actividad es llamada por primera vez
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.graficas);
-        
+
         // Inicializacion de todos los elementos graficos
         statusText = (TextView) this.findViewById(R.id.StatusTextView);
         startStopButton = (Button) this.findViewById(R.id.StartStopButton);
@@ -174,22 +176,22 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		imageView2.setImageBitmap(bitmap2);
 
 		// para dibujar el valor de la SNR
-		canvas3 = new Canvas(bitmap); 
+		canvas3 = new Canvas(bitmap);
 		paint3 = new Paint();
 		paint3.setColor(Color.MAGENTA);
-		
+
 		// para dibujar texto (frecuencia) en el espectrograma
-		canvas4 = new Canvas(bitmap); 
+		canvas4 = new Canvas(bitmap);
 		paint4 = new Paint();
 		paint4.setColor(Color.YELLOW);
-		
+
 		// para dibujar el promedio de la magnitud de los armonicos en el espectrograma
 		canvas5 = new Canvas(bitmap);
 		paint5 = new Paint();
 		paint5.setColor(Color.RED);
-		
+
 		 // para dibujar el umbral establecido por el usuario
-		canvas6 = new Canvas(bitmap);  
+		canvas6 = new Canvas(bitmap);
 		paint6 = new Paint();
 		paint6.setColor(Color.DKGRAY);
 
@@ -202,19 +204,19 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
         DibujaEjeFrecuencias();
 
     }
-    
+
     ////////////////////////////////////////////////////////////////////////
 	// Hace que la pantalla siga encendida hasta que la actividad termine
 	protected void onDestroy(){
 	        super.onDestroy();
-	        
+
 	        this.wakelock.release();
-	        
+
 	 }
-	
-	// Adicionalmente, se recomienda usar onResume, y onSaveInstanceState, para que, 
-	// si minimizamos la aplicacion, la pantalla se apague normalmente, de lo 
-	// contrario, no se apagará la pantalla aunque no tengamos a nuestra aplicación 
+
+	// Adicionalmente, se recomienda usar onResume, y onSaveInstanceState, para que,
+	// si minimizamos la aplicacion, la pantalla se apague normalmente, de lo
+	// contrario, no se apagará la pantalla aunque no tengamos a nuestra aplicación
 	// en primer plano.
 
 	protected void onResume(){
@@ -223,27 +225,27 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 	        // Valor que muestra el boton al volver a la actividad
 	        startStopButton.setText("ON");
 	 }
-    
+
 	// Si se sale de la actividad de manera inesperada
     @Override
     protected void onPause() {
         super.onPause();
         if(started) {
-        	      
-        	started = false;          
-        }        
+
+        	started = false;
+        }
     }
-    
+
     public void onSaveInstanceState(Bundle icicle) {
         super.onSaveInstanceState(icicle);
-        this.wakelock.release();	    
+        this.wakelock.release();
 
     }
-    
-    
+
+
     // PROCESO O TAREA ASINCRONA QUE SENCARGARA DE RECOGER Y ANALIZAR LA SEÑAL DE AUDIO DE ENTRADA
     private class RecordAudio extends AsyncTask<Void, short[], Void> {
-    	
+
 		@Override
 		protected Void doInBackground(Void... params) {
 			try {
@@ -253,8 +255,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 				// estimacion del tamaño del buffer en funcion de la configuracion de audio
 				bufferSize = AudioRecord.getMinBufferSize((int)RATE,
 						channelConfiguration, audioEncoding);
-				
-				// inicializacion del objeto de la clase AudioRecord 
+
+				// inicializacion del objeto de la clase AudioRecord
 				AudioRecord audioRecord = new AudioRecord(
 						MediaRecorder.AudioSource.MIC,(int) RATE,
 						channelConfiguration, audioEncoding, bufferSize);
@@ -265,18 +267,18 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 				audioRecord.startRecording(); // empieza a grabar
 
 				while (started) { // mientras no se pulse de nuevo el boton
-					
+
 					// tamañod de la lectura
 					bufferReadResult = audioRecord.read(audio_data, 0, blockSize_buffer);
-					
-					
+
+
 					// se mandan las muestras recogidas para su procesado
 					publishProgress(audio_data);
-				
+
 				}
-				
+
 				audioRecord.stop(); // para la grabacion momentaneamente
-				
+
 			} catch (Throwable t) { // en caso de error, p.ej. captura de audio ya activa
 				Log.e("AudioRecord", "Recording Failed");
 			}
@@ -294,20 +296,20 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
 			// Arrays con las muestras de audio en tiempo y frecuencia en formato double
-			double[] trama, trama_espectro;	
+			double[] trama, trama_espectro, trama_oct;
 			trama = new double[blockSize_fft];
-			
+
 			// inicializamos el vector que contendra la FFT de
 			transformer = new RealDoubleFFT(blockSize_fft);
 
-			
+
 			for (int i = 0; i < bufferReadResult; i++) {
 
 				trama[i] = (double) toTransform[0][i];
 				//trama[i * 2 + 1] = 0; // aumentaremos la resolucion en frecuencia de la transformada interpolando ceros
 
 			}
-			
+
 
 			// normalizamos la trama de sonido dividiendo todas las muestra por la de mayor valor
 			//normaliza(trama);
@@ -316,30 +318,32 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			// Conseguimos precision con el enventanado
 			// Filtra los armonicos en el espectro
 			// Destaca y realza los fundamentales
-				
+
 			trama = aplicaHamming(trama);
 
 			// Dominio transformado. Realiza la FFT de la trama
 			transformer.ft(trama);
-			
+
 			statusText.setTextSize(TAM_TEXT); // definimos el tamaño para el texto
 
-			DibujaEjeFrecuencias(); // Dibuja las bandas que componen el eje de frecuencias			
+			DibujaEjeFrecuencias(); // Dibuja las bandas que componen el eje de frecuencias
 
 			// Normalizamos el espectro para su representacion
 			//trama_espectro = normaliza(trama);
 			//trama_espectro=logRep(trama);
+            trama=promedioFFT(trama,aux_promedio);
+           // trama_oct = FFT_octavas(trama);
+           // DibujaEspectro(trama, trama_oct ,escalaPantalla);
 
-
-			//promedio la fft la cantidad de veces que figara en el if, y solo lo muestra despues de promediar.
+			//promedio la fft la cantidad de veces que figura en el if, y solo lo muestra despues de promediar.
 			aux_promedio= aux_promedio +1;
 			if (aux_promedio==10) {
                 DibujaEspectro(trama, escalaPantalla); // representa graficamente el espectro de la señal
                 aux_promedio=0;
             }
 
-			
-			
+
+
 		}
 	}
 
@@ -349,12 +353,12 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
     ///////////////////////////////////////////////////////////////////////////////
 	//DIBUJA EL EJE DE FRECUENCIAS/////////////////////////////////////////////////
     public void DibujaEjeFrecuencias(){
-    	
+
 		int[] escalaPantalla=screenDimension();
 		canvas2.drawColor(Color.BLACK);
 		paint2.setAntiAlias(true);
 		paint2.setFilterBitmap(true);
-		
+
 		// Valores que se mostrara en el eje X
 		int[]bandas ={30,60,125,250,500,1000,2000,4000,8000,16000};
 		paint2.setStrokeWidth(5);
@@ -367,20 +371,20 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		paint2.setTextSize(TAM_TEXT3);
         // Grafica el eje X en funciona de la frecuenca logaritmicamente. De esta forma queda por octavas.
 		for(int i=0; i < bandas.length;i++){
-            canvas2.drawText(String.valueOf(bandas[i]),Math.round(factor1*Math.log10(bandas[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas[0]))+50,TAM_TEXT3,paint2);
+            canvas2.drawText(String.valueOf(bandas[i]),Math.round(factor1*Math.log10(bandas[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas[0]))+30,TAM_TEXT3,paint2);
 			}
 		canvas2.drawText("Hz",escalaPantalla[0] - TAM_TEXT1,TAM_TEXT3,paint2);
 
 		imageView2.invalidate();
-		
-		
+
+
     }
-    
-    
+
+
     ///////////////////////////////////////////////////////////////////////////////
 	//DIBUJA EL ESPECTRO///////////////////////////////////////////////////////////
     public void DibujaEspectro(double[] trama_espectro, int[] escala){
-    	
+
     	// Claculo del la relacion Señal a Ruido (dB)
 		// Resulta del cociente entre el valor maximo del espectro entre el pormedio
 		// Lo ideal es que la SNR valga infinio, lo que significa que no hay ruido
@@ -393,13 +397,25 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		int upy;
 		canvas.drawColor(Color.BLACK);
 		int[]bandas ={30,60,125,250,500,1000,2000,4000,8000,16000};
+		int[] bandas_tercios={25,31,42,52,63,79,101,128,160,203,251,321,402,510,639,805,1015,1279,1612,2032,2559,3226,4066,5120,6449,8128,10242,12900,16257};
 
-		for(int i=0; i < bandas.length;i++){
+		for(int i=0; i < bandas.length;i++){ // muestra las lineas verticales por octavas
 			canvas.drawLine(Math.round(factor1*Math.log10(bandas[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas[0]))+50,0,Math.round(factor1*Math.log10(bandas[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas[0]))+50,escala[1],paint6);
 		}
-		for(int i=0; i < escala[1]/100;i++){
-			canvas.drawLine(0,i*100,escala[0],i*100,paint6);
+		for(int i=0; i < escala[1]+400/100;i++){ //muestra las lineas horizontales en db
+			canvas.drawLine(0,i*50,escala[0],i*50,paint6);
 		}
+/*
+		for (int i = 0; i < trama_oct.length; i++) {
+			x1 = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
+			x2 = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
+			downy = (int) (400+escala[1]-(100*Math.log10( Math.abs(trama_oct[i])*escala[1])));
+			upy =  escala[1];
+			canvas5.drawRect(Math.round(factor1*Math.log10(bandas_tercios[i]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas_tercios[0]))+50,downy,Math.round(factor1*Math.log10(bandas_tercios[i+1]))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(bandas_tercios[0]))+50,upy, paint5);
+		}
+
+*/
+
 
 		for (int i = 0; i < trama_espectro.length-1; i++) {
 
@@ -415,8 +431,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
             //El espectro se divide en intervalos regulares por la FFT por lo que en baja frecuencia hay menos resolucion.
             x1 = (int) (Math.round(factor1*Math.log10(i*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
 			 x2= (int) (Math.round(factor1*Math.log10((i+1)*escala_fft))-(TAM_TEXT3)/2-Math.round(factor1*Math.log10(MIN_FREQUENCY))+80);
-			 downy = (int) (escala[1]-(50*Math.log10( Math.abs(trama_espectro[i])*escala[1])));
-			 upy =  (int) (escala[1]-(50*Math.log10( Math.abs(trama_espectro[i+1])*escala[1])));
+			 downy = (int) (400+escala[1]-(100*Math.log10( Math.abs(trama_espectro[i])*escala[1])));
+			 upy =  (int) (400+escala[1]-(100*Math.log10( Math.abs(trama_espectro[i+1])*escala[1])));
 			 canvas.drawLine(x1, downy, x2, upy, paint);
 
 
@@ -428,43 +444,44 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 			}*/
 		}
 
+
 		imageView.invalidate();
-		
+
     }
-    
 
 
-	
+
+
 	// Metodo para el calculo del promedio de un vector de muestras.
-    
+
     private static double promedio(double[] datos) {
-        
+
         int N = datos.length;
         double med = 0;
         for (int k = 0; k < N; k++) {
-            
+
             med += Math.abs(datos[k]);
         }
         med = med / N;
         return med;
     }
-    
+
     // Metodo para el calculo de la media de un vector de muestras.
-    
+
     private static double media(double[] datos) {
         // Computo de la media.
         int N = datos.length;
         double med = 0;
         for (int k = 0; k < N; k++) {
-            
+
             med += datos[k];
         }
         med = med / N;
         return med;
     }
-    
+
     // Metodo para el calculo de la varianza de un vector de muestras.
-    
+
   /*  private static double varianza(double[] datos) {
         // Computo de la media.
         int N = datos.length;
@@ -478,11 +495,11 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
         return varianza;
     }*/
 
-    
+
 	// Metodo para la normalizacion de un vector de muestras.
-    
+
     private static double[] normaliza(double[] datos) {
-       
+
     	double maximo = 0;
         for (int k = 0; k < datos.length; k++) {
             if (Math.abs(datos[k]) > maximo) {
@@ -504,9 +521,9 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
     	return datos;
 
 	}
-    
+
     // Metodo para enventanar Hamming un vector de muestras.
-    
+
     private static double[] aplicaHamming(double[] datos) {
         double A0 = 0.53836;
         double A1 = 0.46164;
@@ -519,12 +536,13 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 
     // Hace el promedio de varias FFT, para mostrar que no varie tan rapido y muestre
-    private static double[] promedioFFT (double [] datos){
-    	double [] datos1=datos;
+    private static double[] promedioFFT (double [] datos,int aux_promedio){
+		if (aux_promedio==0)
+			datos1=datos;
     	for( int i=0; i<datos.length;i++) {
-			datos[i] = (datos1[i] + datos[i])/2;
+			datos1[i] = (Math.abs(datos1[i]) + Math.abs(datos[i]))/2;
 		}
-		return datos;
+		return datos1;
 	}
 
 
@@ -555,8 +573,8 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 		return miMaximo;
 
 	}
-	
-	// Definicion de la clase del objeto Maximo	
+
+	// Definicion de la clase del objeto Maximo
 	class Maximo {
 		int pos;// posicion
 		double valor;
@@ -581,13 +599,20 @@ public class FFTSpectralAnalyzer extends Activity implements OnClickListener {
 
 		}
 	}
-/*
-	private double [] FFT_octavas(double[] datos, int escala[]){
-		int[]bandas ={30,60,125,250,500,1000,2000,4000,8000,16000};
 
+	private double [] FFT_octavas(double[] datos){
+		double datos_oct[]=new double[30];
+		for (int i=1; i<30;i++){
+			int oct = (int) Math.round( blockSize_fft/(Math.pow(2,30-i)));
+			datos_oct[i]=datos[i];
 
-
-	}*/
+			for(int j=oct;j<Math.round((20*Math.pow(2,oct/3)-20)/escala_fft);j++) {
+				datos_oct[i] = (double) Math.round( Math.sqrt( Math.pow(datos_oct[i],2) + Math.pow(datos[j],2)));
+				//datos_oct[i] = 10 * Math.log10(Math.pow(10, datos_oct[i] / 10) + Math.pow(10, datos[j] / 10));
+			}
+		}
+	return datos_oct;
+	}
 
  //funcion que toma las medidas de la pantalla y la relacion de dimensiones entre el alto y el ancho para manejar el tamaño del texto
 	public int [] screenDimension (){
